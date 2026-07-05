@@ -63,7 +63,21 @@ O v1 duplicava `{bug_report}` no system e no user prompt. Na v2: **system** = pe
 - Projeto de tracing/avaliações: https://smith.langchain.com/projects/prompt-optimization-challenge
 - Dataset de avaliação: `prompt-optimization-challenge-eval` (15 exemplos) no LangSmith
 
-Screenshots das avaliações estão em `docs/` (dashboard com notas ≥ 0.8, dataset com 15 exemplos e tracing detalhado).
+### Evidências (screenshots em `docs/`)
+
+Resultado oficial da avaliação com todas as notas ≥ 0.8: [`docs/resultado-avaliacao-oficial.txt`](docs/resultado-avaliacao-oficial.txt)
+
+Prompt v2 publicado (público, com tags das técnicas e histórico de commits):
+
+![Prompt v2 público no Hub](docs/langsmith-prompt-v2-publico.png)
+
+Dataset de avaliação com 15 exemplos:
+
+![Dataset com 15 exemplos](docs/langsmith-dataset-15-exemplos.png)
+
+Tracing detalhado das execuções (gerações + chamadas do LLM-as-Judge):
+
+![Tracing detalhado](docs/langsmith-tracing-detalhado.png)
 
 ### Tabela comparativa: v1 (ruim) vs v2 (otimizado)
 

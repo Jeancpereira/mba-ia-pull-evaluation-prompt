@@ -1,0 +1,28 @@
+Prompt: jeancpereira/bug_to_user_story_v2
+==================================================
+
+Métricas Derivadas:
+  - Helpfulness: 0.89 ✓
+  - Correctness: 0.85 ✓
+
+Métricas Base:
+  - F1-Score: 0.83 ✓
+  - Clarity: 0.89 ✓
+  - Precision: 0.88 ✓
+
+--------------------------------------------------
+📊 MÉDIA GERAL: 0.8678
+--------------------------------------------------
+
+✅ STATUS: APROVADO - Todas as métricas >= 0.8
+
+==================================================
+RESUMO FINAL
+==================================================
+
+Prompts avaliados: 1
+Aprovados: 1
+Reprovados: 0
+
+✅ Todos os prompts atingiram todas as métricas >= 0.8!
+
