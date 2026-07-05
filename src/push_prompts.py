@@ -11,11 +11,12 @@ SIMPLIFICADO: Código mais limpo e direto ao ponto.
 """
 
 import os
+import string
 import sys
 from dotenv import load_dotenv
 from langsmith import Client
 from langchain_core.prompts import ChatPromptTemplate
-from utils import load_yaml, check_env_vars, print_section_header
+from utils import load_yaml, check_env_vars, print_section_header, validate_prompt_structure
 
 load_dotenv()
 
@@ -23,9 +24,26 @@ PROMPTS_FILE = "prompts/bug_to_user_story_v2.yml"
 PROMPT_KEY = "bug_to_user_story_v2"
 
 
+def extract_template_variables(text: str) -> set:
+    """
+    Extrai nomes de variáveis de template ({var}) de um texto.
+
+    Args:
+        text: Texto a analisar
+
+    Returns:
+        Conjunto de nomes de variáveis encontradas
+
+    Raises:
+        ValueError: Se o texto contiver chaves desbalanceadas
+    """
+    return {name for _, name, _, _ in string.Formatter().parse(text) if name}
+
+
 def validate_prompt(prompt_data: dict) -> tuple[bool, list]:
     """
-    Valida estrutura básica de um prompt (versão simplificada).
+    Valida um prompt para publicação: estrutura básica (compartilhada com os
+    testes via utils.validate_prompt_structure) + regras de template.
 
     Args:
         prompt_data: Dados do prompt
@@ -33,25 +51,29 @@ def validate_prompt(prompt_data: dict) -> tuple[bool, list]:
     Returns:
         (is_valid, errors) - Tupla com status e lista de erros
     """
-    errors = []
+    _, errors = validate_prompt_structure(prompt_data)
 
-    for field in ["description", "system_prompt", "user_prompt", "version"]:
-        if not str(prompt_data.get(field, "")).strip():
-            errors.append(f"Campo obrigatório faltando ou vazio: {field}")
+    if not str(prompt_data.get("user_prompt", "")).strip():
+        errors.append("Campo obrigatório faltando ou vazio: user_prompt")
 
-    system_prompt = prompt_data.get("system_prompt", "")
-    if "TODO" in system_prompt:
-        errors.append("system_prompt ainda contém TODOs")
+    # O ChatPromptTemplate (f-string) transforma qualquer {x} literal em variável
+    # obrigatória, que quebraria o evaluate.py (só fornece bug_report).
+    try:
+        system_vars = extract_template_variables(prompt_data.get("system_prompt", ""))
+        user_vars = extract_template_variables(prompt_data.get("user_prompt", ""))
+    except ValueError as e:
+        errors.append(f"Chaves desbalanceadas no prompt: {e}")
+        return (False, errors)
 
-    if "{bug_report}" not in prompt_data.get("user_prompt", ""):
-        errors.append("user_prompt deve conter a variável {bug_report}")
+    if system_vars:
+        errors.append(
+            f"system_prompt não pode conter variáveis de template, encontradas: {sorted(system_vars)}"
+        )
 
-    if "{bug_report}" in system_prompt:
-        errors.append("system_prompt não deve duplicar a variável {bug_report}")
-
-    techniques = prompt_data.get("techniques_applied", [])
-    if len(techniques) < 2:
-        errors.append(f"Mínimo de 2 técnicas requeridas, encontradas: {len(techniques)}")
+    if user_vars != {"bug_report"}:
+        errors.append(
+            f"user_prompt deve conter exatamente a variável {{bug_report}}, encontradas: {sorted(user_vars)}"
+        )
 
     return (len(errors) == 0, errors)
 
@@ -83,8 +105,8 @@ def push_prompt_to_langsmith(prompt_name: str, prompt_data: dict) -> bool:
         ("user", prompt_data["user_prompt"]),
     ])
 
-    techniques = prompt_data.get("techniques_applied", [])
-    tags = prompt_data.get("tags", []) + techniques
+    techniques = prompt_data.get("techniques_applied") or []
+    tags = (prompt_data.get("tags") or []) + techniques
     description = (
         f"{prompt_data['description']} "
         f"(versão {prompt_data['version']} | técnicas: {', '.join(techniques)})"
@@ -94,6 +116,23 @@ def push_prompt_to_langsmith(prompt_name: str, prompt_data: dict) -> bool:
 
     try:
         client = Client()
+
+        # O evaluate.py puxa o prompt como {USERNAME_LANGSMITH_HUB}/{prompt_name}.
+        # Se o username configurado não bater com o handle real da conta, o push
+        # funcionaria mas a avaliação falharia com 404 — melhor falhar aqui.
+        username = os.getenv("USERNAME_LANGSMITH_HUB", "")
+        tenant_handle = getattr(client._get_settings(), "tenant_handle", None)
+
+        if not tenant_handle:
+            print("❌ Sua conta LangSmith ainda não tem um handle público do Hub.")
+            print("   Crie um publicando qualquer prompt público pela UI: https://smith.langchain.com/prompts")
+            return False
+
+        if username != tenant_handle:
+            print(f"❌ USERNAME_LANGSMITH_HUB ('{username}') difere do handle real da conta ('{tenant_handle}').")
+            print("   Corrija o .env para que o evaluate.py encontre o prompt publicado.")
+            return False
+
         url = client.push_prompt(
             prompt_name,
             object=prompt_template,
@@ -106,6 +145,10 @@ def push_prompt_to_langsmith(prompt_name: str, prompt_data: dict) -> bool:
         return True
 
     except Exception as e:
+        if "Nothing to commit" in str(e):
+            print("   ✓ Prompt já publicado e sem mudanças desde o último push")
+            return True
+
         print(f"❌ Erro ao publicar prompt: {e}")
         print("\nVerifique:")
         print("- LANGSMITH_API_KEY está configurada corretamente no .env")

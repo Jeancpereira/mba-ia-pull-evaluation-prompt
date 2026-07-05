@@ -9,9 +9,7 @@ Este script:
 SIMPLIFICADO: Usa serialização nativa do LangChain para extrair prompts.
 """
 
-import os
 import sys
-from pathlib import Path
 from dotenv import load_dotenv
 from langchain import hub
 from utils import save_yaml, check_env_vars, print_section_header
@@ -36,13 +34,18 @@ def extract_messages(prompt_template) -> dict:
     user_prompt = ""
 
     for message in prompt_template.messages:
-        template = getattr(getattr(message, "prompt", None), "template", "")
+        template = getattr(getattr(message, "prompt", None), "template", None)
+        if template is None:
+            # Mensagens sem .prompt (ex: SystemMessage/HumanMessage puros) guardam o texto em .content
+            template = getattr(message, "content", "")
         role = type(message).__name__
 
         if "System" in role:
             system_prompt = template
         elif "Human" in role:
             user_prompt = template
+        else:
+            print(f"   ⚠️  Mensagem do tipo '{role}' não suportada foi ignorada")
 
     return {"system_prompt": system_prompt, "user_prompt": user_prompt}
 

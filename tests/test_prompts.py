@@ -67,7 +67,9 @@ class TestPrompts:
     def test_prompt_no_todos(self, prompt_data):
         """Garante que você não esqueceu nenhum `[TODO]` no texto."""
         content = yaml.dump(prompt_data, allow_unicode=True)
-        assert "TODO" not in content, "Prompt ainda contém marcações TODO"
+        # Marcador literal [TODO] — substring "TODO" solta geraria falso positivo
+        # em texto português ("TODOS", "TODO O FLUXO")
+        assert "[TODO]" not in content, "Prompt ainda contém marcações [TODO]"
 
     def test_minimum_techniques(self, prompt_data):
         """Verifica (através dos metadados do yaml) se pelo menos 2 técnicas foram listadas."""
